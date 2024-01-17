@@ -26,18 +26,18 @@ const App = () => {
 
   const headCells = [
     { id: 'name', numeric: false, disablePadding: true, label: '' },
-    { id: 'currentPrice', numeric: true, disablePadding: true, label: '現價' },
-    { id: 'regularPrice', numeric: true, disablePadding: true, label: '原價' },
+    { id: 'currentPrice', numeric: true, disablePadding: true, label: '售價' },
+    // { id: 'regularPrice', numeric: true, disablePadding: true, label: '原價' },
     { id: 'discountRate', numeric: true, disablePadding: true, label: '折扣' },
-    { id: 'discountStartAt', numeric: false, disablePadding: true, label: '折扣開始日期' },
-    { id: 'discountEndAt', numeric: false, disablePadding: true, label: '折扣結束日期' },
-    { id: 'cheapestPrice', numeric: true, disablePadding: true, label: '最低價' },
-    { id: 'cheapestPriceEndAt', numeric: false, disablePadding: true, label: '最低價日期' },
+    { id: 'discountStartAt', numeric: false, disablePadding: true, label: '優惠由' },
+    { id: 'discountEndAt', numeric: false, disablePadding: true, label: '優惠至' },
+    { id: 'cheapestPrice', numeric: true, disablePadding: true, label: '最低價(日期)' },
+    // { id: 'cheapestPriceEndAt', numeric: false, disablePadding: true, label: '最低價日期' },
   ]
 
   const fetchData = async () => {
     try {
-      const response = await axios.get(`/api/games?pageNo=${page}&pageSize=${rowsPerPage}` + (sortBy ? ( '&sortBy=' + (sortByDirection === 'desc' ? '-' : '') + sortBy) : ''));
+      const response = await axios.get(`/api/games?pageNo=${page}&pageSize=${rowsPerPage}` + (sortBy ? ('&sortBy=' + (sortByDirection === 'desc' ? '-' : '') + sortBy) : ''));
       setData(response.data);
     } catch (error) {
       console.error('Failed to fetch data:', error);
@@ -66,6 +66,14 @@ const App = () => {
     handleChangeSort(event, sortKey)
   }
 
+  function getDisplayPrice(currentPrice, regularPrice) {
+    if (currentPrice >= regularPrice) {
+      return '$' + currentPrice
+    }
+
+    return <><span style={{ color: '#ed934e' }}><b>${currentPrice}</b></span><br /><span style={{ textDecoration: 'line-through' }}>${regularPrice}</span></>
+  }
+
   return (
     <div>
       <TextField
@@ -77,13 +85,15 @@ const App = () => {
         Search
       </Button>
       <TableContainer component={Paper}>
-        <Table>
+        <Table stickyHeader>
           <TableHead>
             <TableRow>
               {headCells.map((headCell) => (
                 <TableCell
                   key={headCell.id}
                   padding={headCell.disablePadding ? 'none' : 'normal'}
+                  scope="row"
+                  align="center"
                   sortDirection={sortBy === headCell.id ? sortByDirection : false}
                 >
                   <TableSortLabel
@@ -100,14 +110,16 @@ const App = () => {
           <TableBody>
             {data.map((item) => (
               <TableRow key={item.id}>
-                <TableCell><a href={item.link} target="_blank">{item.name}</a></TableCell>
-                <TableCell>{item.currentPrice}</TableCell>
-                <TableCell>{item.regularPrice}</TableCell>
-                <TableCell>{item.discountRate ? (item.discountRate + '%') : 'N/A'}</TableCell>
+                <TableCell><a href={item.link} target="_blank">
+                  <img src={item.image} /><br />{item.name}
+                </a></TableCell>
+                <TableCell>{getDisplayPrice(item.currentPrice, item.regularPrice)}</TableCell>
+                {/* <TableCell>{item.regularPrice}</TableCell> */}
+                <TableCell>{item.discountRate ? (<span style={{ color: '#eb5252' }}>↓{item.discountRate}%</span>) : 'N/A'}</TableCell>
                 <TableCell>{item.discountStartAt ? new Date(Date.parse(item.discountStartAt)).toLocaleDateString('zh-HK') : 'N/A'}</TableCell>
                 <TableCell>{item.discountEndAt ? new Date(Date.parse(item.discountEndAt)).toLocaleDateString('zh-HK') : 'N/A'}</TableCell>
-                <TableCell>{item.cheapestPrice}</TableCell>
-                <TableCell>{item.cheapestPriceEndAt ? new Date(Date.parse(item.cheapestPriceEndAt)).toLocaleDateString('zh-HK') : 'N/A'}</TableCell>
+                <TableCell>{item.cheapestPrice ? ('$' + item.cheapestPrice + (' (' + (item.cheapestPriceEndAt && new Date(Date.parse(item.cheapestPriceEndAt)).toLocaleDateString('zh-HK')) + ')')) : 'N/A'}</TableCell>
+                {/* <TableCell>{item.cheapestPriceEndAt ? new Date(Date.parse(item.cheapestPriceEndAt)).toLocaleDateString('zh-HK') : 'N/A'}</TableCell> */}
               </TableRow>
             ))}
           </TableBody>
