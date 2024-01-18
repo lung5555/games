@@ -17,11 +17,11 @@ const App = () => {
   const [sortBy, setSortBy] = useState('discountStartAt');
   const [sortByDirection, setSortByDirection] = useState('desc');
   const [data, setData] = useState([]);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
   useEffect(() => {
-    fetchData();
+    fetchData(searchQuery, page, rowsPerPage, sortBy, sortByDirection);
   }, []);
 
   const headCells = [
@@ -35,9 +35,9 @@ const App = () => {
     // { id: 'cheapestPriceEndAt', numeric: false, disablePadding: true, label: '最低價日期' },
   ]
 
-  const fetchData = async () => {
+  const fetchData = async (searchQuery, pageNo, rowsPerPage, sortBy, sortByDirection) => {
     try {
-      const response = await axios.get(`/api/games?pageNo=${page}&pageSize=${rowsPerPage}` + (sortBy ? ('&sortBy=' + (sortByDirection === 'desc' ? '-' : '') + sortBy) : ''));
+      const response = await axios.get(`/api/games?pageNo=${pageNo + 1}&pageSize=${rowsPerPage}` + (sortBy ? ('&sortBy=' + (sortByDirection === 'desc' ? '-' : '') + sortBy) : '') + (searchQuery ? ('&q=' + searchQuery) : ''));
       setData(response.data);
     } catch (error) {
       console.error('Failed to fetch data:', error);
@@ -45,21 +45,26 @@ const App = () => {
   };
 
   const handleSearch = (event) => {
-    // fetchData();
+    fetchData(searchQuery, page, rowsPerPage, sortBy, sortByDirection);
   };
 
   const handleChangeSort = (event, sortKey) => {
-    setSortByDirection((sortBy === sortKey && sortByDirection === 'asc') ? 'desc' : 'asc')
-    setSortBy(sortKey)
+    const direction = (sortBy === sortKey && sortByDirection === 'asc') ? 'desc' : 'asc';
+    setSortByDirection(direction);
+    setSortBy(sortKey);
+    fetchData(searchQuery, page, rowsPerPage, sortKey, direction);
   };
 
-  const handleChangePage = (event, page) => {
-    setPage(page);
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+    fetchData(searchQuery, newPage, rowsPerPage, sortBy, sortByDirection);
   };
+
 
   const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 50));
-    setPage(1);
+    setRowsPerPage(parseInt(event.target.value));
+    setPage(0);
+    fetchData(searchQuery, 0, parseInt(event.target.value), sortBy, sortByDirection);
   };
 
   const changeSortHandler = (sortKey) => (event) => {
@@ -79,13 +84,13 @@ const App = () => {
       <TextField
         label="Search"
         value={searchQuery}
-      // onChange={(e) => setSearchQuery(e.target.value)}
+        onChange={(e) => setSearchQuery(e.target.value)}
       />
       <Button variant="contained" color="primary" onClick={handleSearch}>
         Search
       </Button>
       <TableContainer component={Paper}>
-        <Table stickyHeader>
+        <Table stickyHeader size="small" aria-label="a dense table">
           <TableHead>
             <TableRow>
               {headCells.map((headCell) => (
@@ -128,7 +133,7 @@ const App = () => {
       <TablePagination
         rowsPerPageOptions={[20, 50, 100]}
         component="div"
-        count={data.length}
+        count={-1}
         rowsPerPage={rowsPerPage}
         page={page}
         onPageChange={handleChangePage}

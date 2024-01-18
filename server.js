@@ -33,11 +33,22 @@ app.use(express.static('build', options))
 app.get('/api/games', async (req, res) => {
     console.log(req.protocol + '://' + req.get('host') + req.originalUrl);
 
+    const search = req.query.q || '';
     const pageNo = req.query.pageNo ?? 1;
     const pageSize = req.query.pageSize ?? 20;
     let sortBy = req.query.sortBy ?? '-discountStartAt';
-    const records = await gamesCollection.filter()
-    res.json(sortByKey(records?.results?.map(record => record?.props), sortBy)?.slice((pageNo - 1) * pageSize, (pageNo - 1) * pageSize + pageSize))
+    const { results } = await gamesCollection.filter();
+    // const { results } = await gamesCollection.parallel_scan({
+    //     expression: "contains(#name, :name)",
+    //     attr_names: {
+    //         "#name": "name",
+    //     },
+    //     attr_vals: {
+    //         ":name": search,
+    //     },
+    // });
+
+    res.json(sortByKey(results.map(({ props }) => props), sortBy)?.slice((pageNo - 1) * pageSize, (pageNo - 1) * pageSize + pageSize))
 })
 
 // Get game's discount records
@@ -88,28 +99,36 @@ function sortByKey(arr, sortBy) {
 // Update
 app.post('/api/games', async (req, res) => {
     const startPage = req.body.startPage ?? 1;
-    updateGamePrices(startPage)
+    const type = req.body.type ?? 'current-offers';
+    updateGamePrices(startPage, type)
         .then(nextPage => {
             res.json({ nextPage: nextPage ?? null });
         });
 });
 
-async function updateGamePrices(startPage = 1, timeout = 25 * 1000) {
+async function updateGamePrices(startPage = 1, type = '', timeout = 25 * 1000) {
     const startTime = Date.now();
-    let priceUrl = process.env.GAME_LIST_URL + '?product_list_limit=24&p=' + startPage.toString();
+    let priceUrl = process.env.GAME_LIST_URL + type + '?product_list_limit=24&p=' + startPage.toString();
 
     while (priceUrl && Date.now() - startTime < timeout) {
         // console.log(`getting data from ${priceUrl}`);
         const $ = cheerio.load((await axios.get(priceUrl)).data);
-        const gameList = $('.product-item-info');
+        const gameList = $('.product-item-photo');
         const gameNameMap = new Map();
 
         gameList.each(async (index, element) => {
-            const gameLink = $(element).find('.product-item-photo').attr('href');
+            const gameLink = $(element).attr('href');
             const gameId = gameLink.split('/').pop();
             const gameImage = $(element).find('.product-image-photo').attr('data-src');
-            const gameName = $(element).find('.product-item-link').text().trim();
+            const gameName = $(element).find('.product-image-photo').attr('alt').trim();
+            //check gameId string start from '1'
+            if (!gameId.startsWith('7')) {
+                // not game
+                return;
+            }
+
             gameNameMap.set(gameId, { name: gameName, image: gameImage, link: gameLink });
+            // console.log(gameId, gameName, gameImage, gameLink);
         });
 
         if (gameNameMap.size <= 0) {
@@ -167,7 +186,7 @@ async function updateGamePrices(startPage = 1, timeout = 25 * 1000) {
                     cheapestPriceEndAt: (game?.cheapestPrice ? parseInt(game?.cheapestPrice) : Infinity) > currentPrice ? discountEndAt : game?.cheapestPriceEndAt,
                 };
                 await gamesCollection.set(gameId, game, {
-                    $index: ['discountStartAt', 'discountEndAt', 'discountRate']
+                    $index: ['discountStartAt', 'discountEndAt', 'discountRate', 'name']
                 });
             }
         });
