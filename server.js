@@ -113,22 +113,37 @@ async function updateGamePrices(startPage = 1, type = '', timeout = 25 * 1000) {
     while (priceUrl && Date.now() - startTime < timeout) {
         // console.log(`getting data from ${priceUrl}`);
         const $ = cheerio.load((await axios.get(priceUrl)).data);
-        const gameList = $('.product-item-photo');
+        const gameList = $('.category-product-item');
         const gameNameMap = new Map();
 
-        gameList.each(async (index, element) => {
-            const gameLink = $(element).attr('href');
-            const gameId = gameLink.split('/').pop();
-            const gameImage = $(element).find('.product-image-photo').attr('data-src');
-            const gameName = $(element).find('.product-image-photo').attr('alt').trim();
-            //check gameId string start from '1'
-            if (!gameId.startsWith('7')) {
-                // not game
-                return;
-            }
+        if (gameList.length > 0) {
+            gameList.each(async (index, element) => {
+                const titleLinkElement = $(element).find('.category-product-item-title-link');
+                const gameLink = titleLinkElement.attr('href');
+                const gameId = gameLink.split('/').pop();
+                const gameName = titleLinkElement.text().trim();
+                const gameImage = $(element).find('.product-image-photo').attr('data-src');
 
-            gameNameMap.set(gameId, { name: gameName, image: gameImage, link: gameLink });
-            // console.log(gameId, gameName, gameImage, gameLink);
+                gameNameMap.set(gameId, { name: gameName, image: gameImage, link: gameLink });
+            });
+        } else {
+            const anotherList = $('.product-item-info');
+            anotherList.each(async (index, element) => {
+                const gameLink = $(element).find('.product-item-photo').attr('href');
+                const gameId = gameLink.split('/').pop();
+                const gameImage = $(element).find('.product-image-photo').attr('data-src');
+                const gameName = $(element).find('.product-item-link').text().trim();
+
+                gameNameMap.set(gameId, { name: gameName, image: gameImage, link: gameLink });
+            });
+        }
+
+        // check gameId string start from '7'
+        gameNameMap.forEach((value, key) => {
+            // console.log(key, value.name, value.image, value.link);
+            if (!key.startsWith('7')) {
+                gameNameMap.delete(key);
+            }
         });
 
         if (gameNameMap.size <= 0) {
@@ -169,14 +184,16 @@ async function updateGamePrices(startPage = 1, type = '', timeout = 25 * 1000) {
                 });
             }
 
-            if (!game || game.currentPrice != currentPrice || parseInt(game.cheapestPrice) > currentPrice) {
+            if (!game || game.currentPrice != currentPrice || parseInt(game.cheapestPrice) > currentPrice
+                || game.name != gameNameMap.get(gameId).name || game.image != gameNameMap.get(gameId).image
+                || game.link != gameNameMap.get(gameId).link) {
                 // create or update
                 // console.log("create/update game: ", gameId)
                 game = {
                     id: gameId,
-                    image: gameNameMap.get(gameId)?.image,
-                    name: gameNameMap.get(gameId)?.name,
-                    link: gameNameMap.get(gameId)?.link,
+                    image: gameNameMap.get(gameId).image,
+                    name: gameNameMap.get(gameId).name,
+                    link: gameNameMap.get(gameId).link,
                     currentPrice: currentPrice,
                     regularPrice: regularPrice,
                     discountRate: discountPrice ? Math.round(100 - discountPrice * 100 / regularPrice) : null,
