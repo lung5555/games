@@ -6,7 +6,6 @@ import TextField from '@mui/material/TextField';
 import Card from '@mui/material/Card';
 import CardActionArea from '@mui/material/CardActionArea';
 import CardMedia from '@mui/material/CardMedia';
-import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -76,9 +75,20 @@ const GamesGrid = () => {
         const endAtLabel = endAt ? new Date(Date.parse(endAt)).toLocaleDateString('zh-HK') : '-';
 
         return (<Grid container justifyContent="space-between">
-            <Grid item xs={8}></Grid>
-            <Grid item xs={2}></Grid>
-            <Grid item xs={2}></Grid>
+            <Grid item xs={8}>
+                <Typography variant="body2" sx={{ padding: "0 5px" }} >
+                    優惠期: {startAtLabel} ~ {endAtLabel}
+                </Typography>
+            </Grid>
+            <Grid item xs={4}>
+                <Typography variant="h6" align="right" >
+                    <span style={{ color: '#eb5252' }}>(↓{discountRate}%) </span>
+                    <span style={{ textDecoration: 'line-through' }}>${regularPrice}</span>
+                </Typography>
+                <Typography variant="body1" align="right" >
+
+                </Typography>
+            </Grid>
         </Grid>);
     }
 
@@ -107,26 +117,31 @@ const GamesGrid = () => {
                     />
                 </Toolbar>
             </AppBar>
-            <Container>
-                <Grid container direction="column" justifyContent="center" alignItems="flex-start" spacing={1}>
-                    {isLoading && <Grid justifyContent="center" alignItems="center"><CircularProgress /></Grid>}
+            <Container sx={{ padding: "0 0" }} >
+                <Grid container justifyContent="flex-start" alignItems="center" spacing={1} >
+                    {isLoading && <Grid item justifyContent="center" alignItems="center"><CircularProgress sx={{ padding: "10px 0" }} /></Grid>}
                     {data.map((item) => (
-                        <Grid item xs={12} sm={8} md={8} lg={8} key={item.id}>
+                        <Grid item xs={12} sm={12} md={12} lg={12} key={item.id}>
                             <Card>
-                                <CardActionArea href={item.link} target="_blank" referrerPolicy="no-referrer" >
-                                    <CardMedia component="img" sx={{ objectFit: "contain" }} height={window.innerWidth < 600 ? 200 : 300} image={item.image} alt={item.name} referrerPolicy="no-referrer" />
-                                    <Grid container justifyContent="space-between">
-                                        <Grid item xs={10}>
-                                            <Typography variant="body1">{item.name}</Typography>
+                                <Grid container>
+                                    <Grid item xs={12} sm={6} md={6} lg={6}>
+                                        <CardActionArea href={item.link} target="_blank" referrerPolicy="no-referrer" >
+                                            {/* style={{ width: (window.innerWidth > 600 ? 600 : window.innerWidth), height: 'auto' }} */}
+                                            <CardMedia component="img" sx={{ objectFit: "contain" }} image={item.image} alt={item.name} referrerPolicy="no-referrer" />
+                                        </CardActionArea>
+                                    </Grid>
+                                    <Grid container sm={6} md={6} lg={6}>
+                                        <Grid item xs={10} sm={12} md={12} lg={12}>
+                                            <Typography variant="body1" sx={{ padding: "0 5px" }}>{item.name}</Typography>
                                         </Grid>
-                                        <Grid item xs={2}>
-                                            <Typography variant="h5" align="right" component="div">
+                                        <Grid item xs={2} sm={12} md={12} lg={12} >
+                                            <Typography variant="h5" sx={{ padding: "0 5px" }} align="right" >
                                                 <span style={{ color: '#ed934e' }}><b>${item.currentPrice}</b></span>
                                             </Typography>
                                         </Grid>
+                                        {getDiscountLabel(item.regularPrice, item.discountRate, item.discountStartAt, item.discountEndAt)}
                                     </Grid>
-                                </CardActionArea>
-                                {getDiscountLabel(item.regularPrice, item.discountRate, item.discountStartAt, item.discountEndAt)}
+                                </Grid>
                             </Card>
                         </Grid>
                     ))}
