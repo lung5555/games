@@ -28,14 +28,13 @@ var options = {
 }
 app.use(express.static('build', options))
 
-
 // List
 app.get('/api/games', async (req, res) => {
     console.log(req.protocol + '://' + req.get('host') + req.originalUrl);
 
     const search = req.query.q || '';
-    const pageNo = req.query.pageNo ?? 1;
-    const pageSize = req.query.pageSize ?? 20;
+    const pageNo = req.query.pageNo ? parseInt(req.query.pageNo) : 1;
+    const pageSize = req.query.pageSize ? parseInt(req.query.pageSize) : 20;
     let sortBy = req.query.sortBy ?? '-discountStartAt';
     const { results } = await gamesCollection.filter();
     // const { results } = await gamesCollection.parallel_scan({
@@ -214,6 +213,10 @@ async function updateGamePrices(startPage = 1, type = '', timeout = 25 * 1000) {
 
     return priceUrl ? (new URL(priceUrl)).searchParams?.get('p') : null;
 }
+
+app.get('*', (req, res) =>{
+    res.sendFile(path.join(__dirname, 'build', 'index.html')); 
+});
 
 const port = process.env.PORT || 3000
 

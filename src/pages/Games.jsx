@@ -11,8 +11,11 @@ import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
 import TablePagination from '@mui/material/TablePagination';
 import TableSortLabel from '@mui/material/TableSortLabel';
+import CircularProgress from '@mui/material/CircularProgress';
+import Stack from '@mui/material/Stack';
 
 const Games = () => {
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('discountStartAt');
   const [sortByDirection, setSortByDirection] = useState('desc');
@@ -39,6 +42,7 @@ const Games = () => {
     try {
       const response = await axios.get(`/api/games?pageNo=${pageNo + 1}&pageSize=${rowsPerPage}` + (sortBy ? ('&sortBy=' + (sortByDirection === 'desc' ? '-' : '') + sortBy) : '') + (searchQuery ? ('&q=' + searchQuery) : ''));
       setData(response.data);
+      setIsLoading(false);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     }
@@ -49,6 +53,9 @@ const Games = () => {
   };
 
   const handleChangeSort = (event, sortKey) => {
+    setIsLoading(true);
+    setData([]);
+
     const direction = (sortBy === sortKey && sortByDirection === 'asc') ? 'desc' : 'asc';
     setSortByDirection(direction);
     setSortBy(sortKey);
@@ -56,12 +63,18 @@ const Games = () => {
   };
 
   const handleChangePage = (event, newPage) => {
+    setIsLoading(true);
+    setData([]);
+
     setPage(newPage);
     fetchData(searchQuery, newPage, rowsPerPage, sortBy, sortByDirection);
   };
 
 
   const handleChangeRowsPerPage = (event) => {
+    setIsLoading(true);
+    setData([]);
+
     setRowsPerPage(parseInt(event.target.value));
     setPage(0);
     fetchData(searchQuery, 0, parseInt(event.target.value), sortBy, sortByDirection);
@@ -90,7 +103,7 @@ const Games = () => {
         Search
       </Button>
       <TableContainer component={Paper}>
-        <Table stickyHeader size="small" aria-label="a dense table">
+        <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
               {headCells.map((headCell) => (
@@ -112,11 +125,12 @@ const Games = () => {
               ))}
             </TableRow>
           </TableHead>
+          {isLoading && (<TableRow><TableCell align="center" colSpan={headCells.length}><CircularProgress /></TableCell></TableRow>)}
           <TableBody>
             {data.map((item) => (
               <TableRow key={item.id}>
                 <TableCell><a href={item.link} target="_blank">
-                  <img src={item.image} referrerPolicy='no-referrer'/><br />{item.name}
+                  <img src={item.image} referrerPolicy='no-referrer' /><br />{item.name}
                 </a></TableCell>
                 <TableCell>{getDisplayPrice(item.currentPrice, item.regularPrice)}</TableCell>
                 {/* <TableCell>{item.regularPrice}</TableCell> */}
