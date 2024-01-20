@@ -12,9 +12,8 @@ import Paper from '@mui/material/Paper';
 import TablePagination from '@mui/material/TablePagination';
 import TableSortLabel from '@mui/material/TableSortLabel';
 import CircularProgress from '@mui/material/CircularProgress';
-import Stack from '@mui/material/Stack';
 
-const Games = () => {
+const GamesTable = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('discountStartAt');
@@ -129,7 +128,7 @@ const Games = () => {
           <TableBody>
             {data.map((item) => (
               <TableRow key={item.id}>
-                <TableCell><a href={item.link} target="_blank">
+                <TableCell><a href={item.link} target="_blank" referrerPolicy="no-referrer">
                   <img src={item.image} referrerPolicy='no-referrer' /><br />{item.name}
                 </a></TableCell>
                 <TableCell>{getDisplayPrice(item.currentPrice, item.regularPrice)}</TableCell>
@@ -157,4 +156,4 @@ const Games = () => {
   );
 };
 
-export default Games;
+export default GamesTable;

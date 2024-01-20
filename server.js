@@ -98,7 +98,7 @@ function sortByKey(arr, sortBy) {
 // Update
 app.post('/api/games', async (req, res) => {
     const startPage = req.body.startPage ?? 1;
-    const type = req.body.type ?? 'current-offers';
+    const type = req.body.type ?? '/digital-games/current-offers';
     updateGamePrices(startPage, type)
         .then(nextPage => {
             res.json({ nextPage: nextPage ?? null });
