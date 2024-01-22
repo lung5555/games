@@ -8,6 +8,7 @@ const db = CyclicDB(process.env.CYCLIC_DB)
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { v4: uuidv4 } = require('uuid');
+const moment = require('moment');
 
 const gamesCollection = db.collection("games");
 const gameDiscountRecordsCollection = db.collection("game_discount_records");
@@ -95,17 +96,46 @@ function sortByKey(arr, sortBy) {
     })
 }
 
+// Expire
+app.post('/api/games/expiry', async (req, res) => {
+    const { results } = await gamesCollection.parallel_scan({
+        expression: `discountEndAt <= :expiredDate 
+                AND cy_meta.rt = :vvitem
+                AND cy_meta.c = :vcol`,
+        attr_vals: {
+            ":expiredDate": moment().utcOffset("+08:00").startOf('day').toISOString(true).replace(".000", ""),
+            ":vvitem": "item",
+            ":vcol": gamesCollection.collection,
+        },
+    });
+
+    let gameNameMap = new Map();
+    for (let index = 0; index < results.length; index++) {
+        gameNameMap.set(results[index].props.id.toString(), results[index].props);
+        if (gameNameMap.size >= 20) {
+            updateGamePrices(new Map(gameNameMap)).then(
+                () => gameNameMap.clear()
+            ).then(
+                await new Promise(r => setTimeout(r, 200))
+            )
+        }
+    }
+    await updateGamePrices(new Map(gameNameMap));
+
+    res.json({ updated: results.length });
+});
+
 // Update
 app.post('/api/games', async (req, res) => {
     const startPage = req.body.startPage ?? 1;
     const type = req.body.type ?? '/digital-games/current-offers';
-    updateGamePrices(startPage, type)
+    updateGames(startPage, type)
         .then(nextPage => {
             res.json({ nextPage: nextPage ?? null });
         });
 });
 
-async function updateGamePrices(startPage = 1, type = '', timeout = 25 * 1000) {
+async function updateGames(startPage = 1, type = '', timeout = 25 * 1000) {
     const startTime = Date.now();
     let priceUrl = process.env.GAME_LIST_URL + type + '?product_list_limit=24&p=' + startPage.toString();
 
@@ -150,62 +180,7 @@ async function updateGamePrices(startPage = 1, type = '', timeout = 25 * 1000) {
             return;
         }
 
-        const priceInfoUrl = process.env.GAME_PRICE_INFO_URL + '?' + process.env.GAME_PRICE_INFO_PARAM + '=' + Array.from(gameNameMap.keys()).join('&' + process.env.GAME_PRICE_INFO_PARAM + '=');
-        // console.log(`getting price info from ${priceInfoUrl}`);
-        const priceInfoList = (await axios.get(priceInfoUrl)).data;
-        priceInfoList.forEach(async priceInfo => {
-            const regularPrice = priceInfo.price.regular_price?.raw_value ? parseInt(priceInfo.price.regular_price?.raw_value) : null;
-            const discountPrice = priceInfo.price.discount_price?.raw_value ? parseInt(priceInfo.price.discount_price?.raw_value) : null;
-            const discountStartAt = priceInfo.price.discount_price?.start_datetime;
-            const discountEndAt = priceInfo.price.discount_price?.end_datetime;
-            const currentPrice = discountPrice ?? regularPrice;
-            // console.log(`current: ${currentPrice}, discount: ${discountPrice} (${discountStartAt} - ${discountEndAt})`);
-
-            const gameId = priceInfo.id.toString();
-            if (!gameNameMap.get(gameId)) {
-                console.log("Cannot get game from map!")
-                return;
-            }
-
-            let game = (await gamesCollection.get(gameId))?.props;
-            if (discountPrice && (game?.discountEndAt != discountEndAt)) {
-                // create discount record
-                // console.log("create discount records: ", gameId)
-                await gameDiscountRecordsCollection.set(uuidv4(), {
-                    gameId: gameId,
-                    regularPrice: regularPrice,
-                    discountPrice: discountPrice ?? null,
-                    discountRate: discountPrice ? Math.round(100 - discountPrice * 100 / regularPrice) : null,
-                    discountStartAt: discountStartAt ?? null,
-                    discountEndAt: discountEndAt ?? null,
-                }, {
-                    $index: ['gameId', 'discountStartAt']
-                });
-            }
-
-            if (!game || game.currentPrice != currentPrice || parseInt(game.cheapestPrice) > currentPrice
-                || game.name != gameNameMap.get(gameId).name || game.image != gameNameMap.get(gameId).image
-                || game.link != gameNameMap.get(gameId).link) {
-                // create or update
-                // console.log("create/update game: ", gameId)
-                game = {
-                    id: gameId,
-                    image: gameNameMap.get(gameId).image,
-                    name: gameNameMap.get(gameId).name,
-                    link: gameNameMap.get(gameId).link,
-                    currentPrice: currentPrice,
-                    regularPrice: regularPrice,
-                    discountRate: discountPrice ? Math.round(100 - discountPrice * 100 / regularPrice) : null,
-                    discountStartAt: discountStartAt ?? null,
-                    discountEndAt: discountEndAt ?? null,
-                    cheapestPrice: (game?.cheapestPrice ? parseInt(game?.cheapestPrice) : Infinity) > currentPrice ? currentPrice : parseInt(game?.cheapestPrice),
-                    cheapestPriceEndAt: (game?.cheapestPrice ? parseInt(game?.cheapestPrice) : Infinity) > currentPrice ? discountEndAt : game?.cheapestPriceEndAt,
-                };
-                await gamesCollection.set(gameId, game, {
-                    $index: ['discountStartAt', 'discountEndAt', 'discountRate', 'name']
-                });
-            }
-        });
+        await updateGamePrices(gameNameMap);
 
         await new Promise(r => setTimeout(r, 200));
         priceUrl = $('.pages-item-next > .next').attr('href');
@@ -214,8 +189,67 @@ async function updateGamePrices(startPage = 1, type = '', timeout = 25 * 1000) {
     return priceUrl ? (new URL(priceUrl)).searchParams?.get('p') : null;
 }
 
-app.get('*', (req, res) =>{
-    res.sendFile(path.join(__dirname, 'build', 'index.html')); 
+async function updateGamePrices(gameNameMap) {
+    const priceInfoUrl = process.env.GAME_PRICE_INFO_URL + '?' + process.env.GAME_PRICE_INFO_PARAM + '=' + Array.from(gameNameMap.keys()).join('&' + process.env.GAME_PRICE_INFO_PARAM + '=');
+    // console.log(`getting price info from ${priceInfoUrl}`);
+    const priceInfoList = (await axios.get(priceInfoUrl)).data;
+    priceInfoList.forEach(async priceInfo => {
+        const regularPrice = priceInfo.price.regular_price?.raw_value ? parseInt(priceInfo.price.regular_price?.raw_value) : null;
+        const discountPrice = priceInfo.price.discount_price?.raw_value ? parseInt(priceInfo.price.discount_price?.raw_value) : null;
+        const discountStartAt = priceInfo.price.discount_price?.start_datetime;
+        const discountEndAt = priceInfo.price.discount_price?.end_datetime;
+        const currentPrice = discountPrice ?? regularPrice;
+        // console.log(`current: ${currentPrice}, discount: ${discountPrice} (${discountStartAt} - ${discountEndAt})`);
+
+        const gameId = priceInfo.id.toString();
+        const game = gameNameMap.get(gameId);
+        if (!game) {
+            console.log("Cannot get game from map!")
+            return;
+        }
+
+        let oldGame = (await gamesCollection.get(gameId))?.props;
+        if (discountPrice && (oldGame?.discountEndAt != discountEndAt)) {
+            // create discount record
+            // console.log("create discount records: ", gameId)
+            await gameDiscountRecordsCollection.set(uuidv4(), {
+                gameId: gameId,
+                regularPrice: regularPrice,
+                discountPrice: discountPrice ?? null,
+                discountRate: discountPrice ? Math.round(100 - discountPrice * 100 / regularPrice) : null,
+                discountStartAt: discountStartAt ?? null,
+                discountEndAt: discountEndAt ?? null,
+            }, {
+                $index: ['gameId', 'discountStartAt']
+            });
+        }
+
+        if (!oldGame || oldGame.currentPrice != currentPrice || parseInt(oldGame.cheapestPrice) > currentPrice
+            || oldGame.name != game.name || oldGame.image != game.image
+            || oldGame.link != game.link) {
+            // create or update
+            // console.log("create/update game: ", gameId)
+            await gamesCollection.set(gameId, {
+                id: gameId,
+                image: game.image,
+                name: game.name,
+                link: game.link,
+                currentPrice: currentPrice,
+                regularPrice: regularPrice,
+                discountRate: discountPrice ? Math.round(100 - discountPrice * 100 / regularPrice) : null,
+                discountStartAt: discountStartAt ?? null,
+                discountEndAt: discountEndAt ?? null,
+                cheapestPrice: (oldGame?.cheapestPrice ? parseInt(oldGame?.cheapestPrice) : Infinity) > currentPrice ? currentPrice : parseInt(oldGame?.cheapestPrice),
+                cheapestPriceEndAt: (oldGame?.cheapestPrice ? parseInt(oldGame?.cheapestPrice) : Infinity) > currentPrice ? discountEndAt : oldGame?.cheapestPriceEndAt,
+            }, {
+                $index: ['discountStartAt', 'discountEndAt', 'discountRate', 'name']
+            });
+        }
+    });
+}
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
 const port = process.env.PORT || 3000

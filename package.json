@@ -34,13 +34,14 @@
     "axios": "^1.6.5",
     "cheerio": "^1.0.0-rc.12",
     "express": "^4.17.3",
+    "moment": "^2.30.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
-    "@mui/material": "^5.15.5",
     "@mui/icons-material": "^5.15.5",
+    "@mui/material": "^5.15.5",
     "env-cmd": "^10.1.0",
     "nodemon": "^2.0.22",
     "react": "^17.0.2",

@@ -141,7 +141,7 @@ const GamesGrid = () => {
                             <option value="-discountStartAt">最新優惠</option>
                             <option value="discountEndAt">就完優惠</option>
                             <option value="currentPrice">售價</option>
-                            <option value="discountRate">折扣</option>
+                            <option value="-discountRate">折扣</option>
                         </NativeSelect>
                     </Grid>
                 </Toolbar>
