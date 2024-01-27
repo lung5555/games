@@ -20,56 +20,70 @@ const GamesGrid = () => {
     const [sortBy, setSortBy] = useState('-discountStartAt');
     const [data, setData] = useState([]);
     const [page, setPage] = useState(0);
+    const [handlingScroll, setHandlingScroll] = useState(false);
 
-    useEffect(() => {
-        fetchData(searchQuery, page, sortBy);
+    useEffect(async () => {
+        await fetchData(searchQuery, page, sortBy);
     }, []);
 
-    const fetchData = async (searchQuery, pageNo, sortBy, resetData = true) => {
+    function randomString(length) {
+        let result = '';
+        const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const charactersLength = characters.length;
+        let counter = 0;
+        while (counter < length) {
+            result += characters.charAt(Math.floor(Math.random() * charactersLength));
+            counter += 1;
+        }
+        return result;
+    }
+
+    const fetchData = async (searchQuery, pageNo, sortBy) => {
+        console.log("fetching pageNo:", pageNo);
+        await new Promise(r => setTimeout(r, 1000));
         try {
             const response = await axios.get(`/api/games?pageNo=${pageNo + 1}&pageSize=50` + (sortBy ? ('&sortBy=' + sortBy) : '') + (searchQuery ? ('&q=' + searchQuery) : ''));
-            if (resetData) {
-                setData(response.data);
-            } else {
-                setData(data.concat(response.data));
-            }
+            setData((prev) => [...prev, ...response.data]);
             setIsLoading(false);
         } catch (error) {
             console.error('Failed to fetch data:', error);
         }
     };
 
-    const handleScroll = () => {
-        if (!isLoading && (window.innerHeight + window.scrollY >= document.body.offsetHeight)) {
-            console.log("handleScroll: ", page)
-            setPage(page + 1);
-            setIsLoading(true)
-            fetchData(searchQuery, page + 1, sortBy);
-        }
-    };
-
-    const handleSearch = () => {
+    const handleSearch = async () => {
         setPage(0);
         setData([]);
         setIsLoading(true)
-        fetchData();
+        await fetchData();
     };
 
-    const handleSortChange = (event) => {
-        console.log("handleSortChange");
+    const handleSortChange = async (event) => {
+        // console.log("handleSortChange");
         setSortBy(event.target.value);
         setPage(0);
         setData([]);
         setIsLoading(true)
-        fetchData(searchQuery, 0, event.target.value);
+        await fetchData(searchQuery, 0, event.target.value);
+    };
+
+    const handleScroll = async () => {
+        // console.log("handleScroll 1st:", handlingScroll, window.innerHeight, window.scrollY, document.body.offsetHeight)
+        if (!handlingScroll && !isLoading && (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1.5 * window.innerHeight)) {
+            // Fetch new data
+            setHandlingScroll(true);
+            setPage(page + 1);
+            setIsLoading(true);
+            await fetchData(searchQuery, page + 1, sortBy);
+        }
     };
 
     useEffect(() => {
-        // window.addEventListener('scroll', handleScroll);
-        // return () => {
-        //     window.removeEventListener('scroll', handleScroll);
-        // };
-    }, []);
+        window.addEventListener('scroll', handleScroll);
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+            setHandlingScroll(false);
+        }
+    }, [document.body.offsetHeight]);
 
     function getCurrentPriceLabel(data) {
         return <Grid container justifyContent="space-between" alignItems="flex-end">
@@ -146,9 +160,8 @@ const GamesGrid = () => {
                     </Grid>
                 </Toolbar>
             </AppBar>
-            <Container sx={{ padding: "0 0" }} >
+            <Container sx={{ padding: "0 0" }}>
                 <Grid container justifyContent="center" alignItems="center" spacing={0.5} >
-                    {isLoading && <Grid item justifyContent="center" alignItems="center"><CircularProgress sx={{ padding: "10px 0" }} /></Grid>}
                     {data.map((item) => (
                         <Grid item xs={12} sm={6} md={6} lg={6} key={item.id}>
                             <Card>
@@ -169,6 +182,7 @@ const GamesGrid = () => {
                             </Card>
                         </Grid>
                     ))}
+                    {isLoading && <Grid item justifyContent="center" alignItems="center"><CircularProgress sx={{ padding: "10px 0" }} /></Grid>}
                 </Grid>
             </Container>
         </div>
