@@ -140,7 +140,7 @@ const GamesGrid = () => {
 
     return (
         <div>
-            <AppBar position="sticky">
+            <AppBar position="sticky" sx={{ bgcolor: "#7edffc" }}>
                 <Toolbar>
                     <Grid container justifyContent="space-between" alignItems="stretch">
                         <IconButton edge="start" color="inherit" aria-label="menu">
