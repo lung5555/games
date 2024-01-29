@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Container from '@mui/material/Container';
 import Grid from '@mui/material/Grid';
@@ -20,7 +20,8 @@ const GamesGrid = () => {
     const [sortBy, setSortBy] = useState('-discountStartAt');
     const [data, setData] = useState([]);
     const [page, setPage] = useState(0);
-    const [handlingScroll, setHandlingScroll] = useState(false);
+    const handlingScroll = useRef(false);
+
 
     useEffect(async () => {
         await fetchData(searchQuery, page, sortBy);
@@ -67,13 +68,14 @@ const GamesGrid = () => {
     };
 
     const handleScroll = async () => {
-        // console.log("handleScroll 1st:", handlingScroll, window.innerHeight, window.scrollY, document.body.offsetHeight)
-        if (!handlingScroll && !isLoading && (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1.5 * window.innerHeight)) {
+        // console.log("handleScroll:", handlingScroll.current, window.innerHeight, window.scrollY, document.body.offsetHeight)
+        if (!handlingScroll.current && (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1.5 * window.innerHeight)) {
             // Fetch new data
-            setHandlingScroll(true);
+            handlingScroll.current = true;
             setPage(page + 1);
             setIsLoading(true);
             await fetchData(searchQuery, page + 1, sortBy);
+            handlingScroll.current = false;
         }
     };
 
@@ -81,7 +83,6 @@ const GamesGrid = () => {
         window.addEventListener('scroll', handleScroll);
         return () => {
             window.removeEventListener('scroll', handleScroll);
-            setHandlingScroll(false);
         }
     }, [document.body.offsetHeight]);
 
