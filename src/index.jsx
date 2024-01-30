@@ -9,7 +9,8 @@ import PageNotFound from "./pages/PageNotFound"
 ReactDOM.render(
   <Router>
     <Routes>
-      <Route exact path="/" element={<GamesTable />} />
+      <Route exact path="/" element={<GamesGrid />} />
+      <Route path="/v1" element={<GamesTable />} />
       <Route path="/v2" element={<GamesGrid />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>

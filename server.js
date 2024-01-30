@@ -37,16 +37,24 @@ app.get('/api/games', async (req, res) => {
     const pageNo = req.query.pageNo ? parseInt(req.query.pageNo) : 1;
     const pageSize = req.query.pageSize ? parseInt(req.query.pageSize) : 20;
     let sortBy = req.query.sortBy ?? '-discountStartAt';
-    const { results } = await gamesCollection.filter();
-    // const { results } = await gamesCollection.parallel_scan({
-    //     expression: "contains(#name, :name)",
-    //     attr_names: {
-    //         "#name": "name",
-    //     },
-    //     attr_vals: {
-    //         ":name": search,
-    //     },
-    // });
+    let results = [];
+    if (search == '') {
+        ({ results } = await gamesCollection.filter());
+    } else {
+        ({ results } = await gamesCollection.parallel_scan({
+            expression: `(contains(#name, :search) OR id = :search)
+                    AND cy_meta.rt = :vvitem
+                    AND cy_meta.c = :vcol`,
+            attr_names: {
+                "#name": "name",
+            },
+            attr_vals: {
+                ":search": search,
+                ":vvitem": "item",
+                ":vcol": gamesCollection.collection,
+            },
+        }));
+    }
 
     res.json(sortByKey(results.map(({ props }) => props), sortBy)?.slice((pageNo - 1) * pageSize, (pageNo - 1) * pageSize + pageSize))
 })

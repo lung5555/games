@@ -10,7 +10,9 @@ import Typography from '@mui/material/Typography';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
 import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
 import CircularProgress from '@mui/material/CircularProgress';
 import NativeSelect from '@mui/material/NativeSelect';
 
@@ -20,8 +22,10 @@ const GamesGrid = () => {
     const [sortBy, setSortBy] = useState('-discountStartAt');
     const [data, setData] = useState([]);
     const [page, setPage] = useState(0);
-    const handlingScroll = useRef(false);
+    const [searching, setSearching] = useState(false);
 
+    const fetchingData = useRef(false);
+    const haveNext = useRef(true);
 
     useEffect(async () => {
         await fetchData(searchQuery, page, sortBy);
@@ -41,24 +45,57 @@ const GamesGrid = () => {
 
     const fetchData = async (searchQuery, pageNo, sortBy) => {
         console.log("fetching pageNo:", pageNo);
-        await new Promise(r => setTimeout(r, 1000));
+
+        fetchingData.current = true;
         try {
             const response = await axios.get(`/api/games?pageNo=${pageNo + 1}&pageSize=50` + (sortBy ? ('&sortBy=' + sortBy) : '') + (searchQuery ? ('&q=' + searchQuery) : ''));
+            if (response.data.length < 50) {
+                haveNext.current = false;
+            }
             setData((prev) => [...prev, ...response.data]);
             setIsLoading(false);
         } catch (error) {
             console.error('Failed to fetch data:', error);
         }
+        fetchingData.current = false;
     };
 
-    const handleSearch = async () => {
+    const handleSearch = async (query) => {
+        if (fetchingData.current) {
+            return;
+        }
+
+        console.log("handleSearch: ", query);
+        setSearchQuery(query);
         setPage(0);
         setData([]);
         setIsLoading(true)
-        await fetchData();
+        await fetchData(query, 0, sortBy);
+    };
+
+    const handleSearchClear = async () => {
+        if (fetchingData.current) {
+            return;
+        }
+
+        // console.log("handleSearchClear");
+        setSearchQuery('');
+        setSearching(false);
+        setPage(0);
+        setData([]);
+        setIsLoading(true)
+        await fetchData('', 0, sortBy);
+    };
+
+    const handleSearchIconClick = () => {
+        setSearching(true);
     };
 
     const handleSortChange = async (event) => {
+        if (fetchingData.current) {
+            return;
+        }
+
         // console.log("handleSortChange");
         setSortBy(event.target.value);
         setPage(0);
@@ -68,14 +105,21 @@ const GamesGrid = () => {
     };
 
     const handleScroll = async () => {
-        // console.log("handleScroll:", handlingScroll.current, window.innerHeight, window.scrollY, document.body.offsetHeight)
-        if (!handlingScroll.current && (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1.5 * window.innerHeight)) {
+        // console.log("handleScroll:", fetchingData.current, window.innerHeight, window.scrollY, document.body.offsetHeight)
+        if (!fetchingData.current && (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1.5 * window.innerHeight)) {
+            if (fetchingData.current) {
+                return;
+            }
+
             // Fetch new data
-            handlingScroll.current = true;
+            if (!haveNext.current) {
+                // console.log("No more...");
+                return;
+            }
+
             setPage(page + 1);
             setIsLoading(true);
             await fetchData(searchQuery, page + 1, sortBy);
-            handlingScroll.current = false;
         }
     };
 
@@ -142,22 +186,56 @@ const GamesGrid = () => {
         <div>
             <AppBar position="sticky" sx={{ bgcolor: "#42a5f5" }}>
                 <Toolbar>
-                    <Grid container justifyContent="space-between" alignItems="stretch">
-                        <IconButton edge="start" color="inherit" aria-label="menu">
-                            <SearchIcon />
-                        </IconButton>
-                        <TextField
-                            label="Search"
-                            variant="outlined"
-                        // value={searchTerm}
-                        // onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        <NativeSelect value={sortBy} onChange={handleSortChange}>
-                            <option value="-discountStartAt">最新優惠</option>
-                            <option value="discountEndAt">就完優惠</option>
-                            <option value="currentPrice">售價</option>
-                            <option value="-discountRate">折扣</option>
-                        </NativeSelect>
+                    <Grid container justifyContent="space-between" alignItems="center">
+                        <Grid item>
+                            {searching ?
+                                (
+                                    <TextField
+                                        placeholder="搜尋"
+                                        variant="standard"
+                                        InputProps={{
+                                            startAdornment: (
+                                                <InputAdornment position="start">
+                                                    <SearchIcon />
+                                                </InputAdornment>
+                                            ),
+                                            endAdornment: (
+                                                <InputAdornment position="end">
+                                                    <IconButton
+                                                        onClick={handleSearchClear}
+                                                        onMouseDown={handleSearchClear}
+                                                        edge="end"
+                                                    >
+                                                        <ClearIcon />
+                                                    </IconButton>
+                                                </InputAdornment>
+                                            )
+                                        }}
+                                        returnKeyType='search'
+                                        autoFocus={true}
+                                        defaultValue={searchQuery}
+                                        onKeyUp={(e) => {
+                                            if (e.key === 'Enter') {
+                                                handleSearch(e.target.value);
+                                            }
+                                        }}
+
+                                        onSubmitEditing={(e) => handleSearch(e.target.value)}
+                                    />
+                                ) : (
+                                    <IconButton edge="start" color="inherit" aria-label="menu" onClick={handleSearchIconClick}>
+                                        <SearchIcon />
+                                    </IconButton>
+                                )}
+                        </Grid>
+                        <Grid item>
+                            <NativeSelect value={sortBy} onChange={handleSortChange}>
+                                <option value="-discountStartAt">最新優惠</option>
+                                <option value="discountEndAt">就完優惠</option>
+                                <option value="currentPrice">售價</option>
+                                <option value="-discountRate">折扣</option>
+                            </NativeSelect>
+                        </Grid>
                     </Grid>
                 </Toolbar>
             </AppBar>
@@ -186,7 +264,7 @@ const GamesGrid = () => {
                     {isLoading && <Grid item justifyContent="center" alignItems="center"><CircularProgress sx={{ padding: "10px 0" }} /></Grid>}
                 </Grid>
             </Container>
-        </div>
+        </div >
     );
 };
 
