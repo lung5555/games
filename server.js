@@ -136,7 +136,7 @@ app.post('/api/games/expiry', async (req, res) => {
 // Update
 app.post('/api/games', async (req, res) => {
     const startPage = req.body.startPage ?? 1;
-    const type = req.body.type ?? '/digital-games/current-offers';
+    const type = req.body.type;
     updateGames(startPage, type)
         .then(nextPage => {
             res.json({ nextPage: nextPage ?? null });
@@ -145,31 +145,30 @@ app.post('/api/games', async (req, res) => {
 
 async function updateGames(startPage = 1, type = '', timeout = 25 * 1000) {
     const startTime = Date.now();
-    let priceUrl = process.env.GAME_LIST_URL + type + '?product_list_limit=24&p=' + startPage.toString();
+    let priceUrl = `${process.env.GAME_LIST_URL + type}?${process.env.GAME_LIST_LIMIT_PARAM}=24&p=${startPage.toString()}`;
 
     while (priceUrl && Date.now() - startTime < timeout) {
         // console.log(`getting data from ${priceUrl}`);
         const $ = cheerio.load((await axios.get(priceUrl)).data);
-        const gameList = $('.category-product-item');
+        const gameList = $(process.env.GAME_ITEM_SELECTOR_1);
         const gameNameMap = new Map();
 
         if (gameList.length > 0) {
             gameList.each(async (index, element) => {
-                const titleLinkElement = $(element).find('.category-product-item-title-link');
-                const gameLink = titleLinkElement.attr('href');
+                const gameLink = $(element).find(process.env.GAME_LINK_SELECTOR_1).attr(process.env.GAME_LINK_ATTR_1);
                 const gameId = gameLink.split('/').pop();
-                const gameName = titleLinkElement.text().trim();
-                const gameImage = $(element).find('.product-image-photo').attr('data-src');
+                const gameImage = $(element).find(process.env.GAME_IMAGE_SELECTOR_1).attr(process.env.GAME_IMAGE_ATTR_1);
+                const gameName = $(element).find(process.env.GAME_NAME_SELECTOR_1).text().trim();
 
                 gameNameMap.set(gameId, { name: gameName, image: gameImage, link: gameLink });
             });
         } else {
-            const anotherList = $('.product-item-info');
+            const anotherList = $(process.env.GAME_ITEM_SELECTOR_2);
             anotherList.each(async (index, element) => {
-                const gameLink = $(element).find('.product-item-photo').attr('href');
+                const gameLink = $(element).find(process.env.GAME_LINK_SELECTOR_2).attr(process.env.GAME_LINK_ATTR_2);
                 const gameId = gameLink.split('/').pop();
-                const gameImage = $(element).find('.product-image-photo').attr('data-src');
-                const gameName = $(element).find('.product-item-link').text().trim();
+                const gameImage = $(element).find(process.env.GAME_IMAGE_SELECTOR_2).attr(process.env.GAME_IMAGE_ATTR_2);
+                const gameName = $(element).find(process.env.GAME_NAME_SELECTOR_2).text().trim();
 
                 gameNameMap.set(gameId, { name: gameName, image: gameImage, link: gameLink });
             });
@@ -191,7 +190,7 @@ async function updateGames(startPage = 1, type = '', timeout = 25 * 1000) {
         await updateGamePrices(gameNameMap);
 
         await new Promise(r => setTimeout(r, 200));
-        priceUrl = $('.pages-item-next > .next').attr('href');
+        priceUrl = $(process.env.NEXT_PAGE_SELECTOR).attr(process.env.NEXT_PAGE_ATTR);
     }
 
     return priceUrl ? (new URL(priceUrl)).searchParams?.get('p') : null;
