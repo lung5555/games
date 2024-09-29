@@ -15,13 +15,19 @@ import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import CircularProgress from '@mui/material/CircularProgress';
 import NativeSelect from '@mui/material/NativeSelect';
+import Button from '@mui/material/Button';
+import Popover from '@mui/material/Popover';
 
 const GamesGrid = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState('-discountStartAt');
     const [data, setData] = useState([]);
+    const [discountRecords, setDiscountRecords] = useState([]);
     const [searching, setSearching] = useState(false);
+
+    const [anchorEl, setAnchorEl] = useState([]);
+    const [isLoadingDiscount, setIsLoadingDiscount] = useState(true);
 
     const page = useRef(0);
     const fetchingData = useRef(false);
@@ -58,6 +64,18 @@ const GamesGrid = () => {
             fetchingData.current = false;
         } catch (error) {
             console.error('Failed to fetch data:', error);
+        }
+    };
+
+    const fetchDiscounts = async (gameId, pageNo) => {
+        console.log("fetching discount gameId:", gameId, "pageNo:", pageNo);
+
+        try {
+            const response = await axios.get(`/api/games/${gameId}/discount-records?pageNo=${pageNo + 1}&pageSize=10`);
+            setDiscountRecords(response.data);
+            setIsLoadingDiscount(false);
+        } catch (error) {
+            console.error('Failed to fetch discounts:', error);
         }
     };
 
@@ -111,7 +129,7 @@ const GamesGrid = () => {
             (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1.5 * window.innerHeight) &&
             haveNext.current) {
             console.log("fetchingData.current:", fetchingData.current, "haveNext.current:", haveNext.current)
-            
+
             console.log("2nd useEffect");
 
             // fetchingData.current = true;
@@ -119,6 +137,20 @@ const GamesGrid = () => {
             setIsLoading(true);
             await fetchData(searchQuery, page.current, sortBy);
         }
+    };
+
+    const handlePopoverOpen = (gameId) => async (event) => {
+        console.log("handlePopoverOpen gameId:", gameId)
+        setAnchorEl((prev) => {
+            prev[gameId] = event.currentTarget;
+            return prev;
+        });
+        setIsLoadingDiscount(true);
+        await fetchDiscounts(gameId, 0);
+    };
+
+    const handlePopoverClose = (gameId) => () => {
+        setAnchorEl([]);
     };
 
     useEffect(() => {
@@ -147,9 +179,41 @@ const GamesGrid = () => {
         }
 
         const dateLabel = data.cheapestPriceEndAt ? new Date(Date.parse(data.cheapestPriceEndAt)).toLocaleDateString('zh-HK') : '-';
-        return (<Typography variant="caption" sx={{ padding: "0 5px 0 0" }} display="inline">
-            <span style={{ color: '#8f8f8f' }}>${data.cheapestPrice} ({dateLabel})</span>
-        </Typography>);
+        return (<div>
+            <Button aria-describedby={anchorEl[data.id]} onClick={handlePopoverOpen(data.id)} sx={{ padding: "0 5px 0 5px" }}>
+                <Typography variant="caption" display="inline">
+                    <span style={{ color: '#8f8f8f' }}>${data.cheapestPrice} ({dateLabel})</span>
+                </Typography>
+            </Button>
+            <Popover
+                id={anchorEl[data.id]}
+                open={Boolean(anchorEl[data.id])}
+                anchorEl={anchorEl[data.id]}
+                slotProps={{
+                    paper: {
+                        style: {
+                            boxShadow: '0px 1px 1px 0px rgb(0 0 0 / 6%)',
+                        }
+                    }
+                }}
+                anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'right',
+                }}
+                transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                }}
+                onClose={handlePopoverClose(data.id)}
+            >
+                {isLoadingDiscount && <CircularProgress sx={{ padding: "10px 0" }} />}
+                {Boolean(anchorEl[data.id]) && discountRecords.map(function (item) {
+                    return (<Typography variant="caption" display="inline" key={randomString(10)}>
+                        <span style={(data.cheapestPrice == item.discountPrice) ? { color: '#8f8f8f', fontWeight: 'bold' } : { color: '#8f8f8f' }}>${item.discountPrice} ({new Date(Date.parse(item.discountEndAt)).toLocaleDateString('zh-HK')})</span><br></br>
+                    </Typography>);
+                })}
+            </Popover>
+        </div>);
     }
 
     function getPriceLabel(data) {
