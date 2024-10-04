@@ -20,22 +20,22 @@ import Popover from '@mui/material/Popover';
 
 const GamesGrid = () => {
     const [isLoading, setIsLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [sortBy, setSortBy] = useState('-discountStartAt');
     const [data, setData] = useState([]);
     const [discountRecords, setDiscountRecords] = useState([]);
     const [searching, setSearching] = useState(false);
-
+    
     const [anchorEl, setAnchorEl] = useState([]);
     const [isLoadingDiscount, setIsLoadingDiscount] = useState(true);
-
+    
+    const searchQuery = useRef('');
+    const sortBy = useRef('-discountStartAt');
     const page = useRef(0);
     const fetchingData = useRef(false);
     const haveNext = useRef(true);
 
     useEffect(async () => {
-        console.log("1st useEffect");
-        await fetchData(searchQuery, page.current, sortBy);
+        // console.log("1st useEffect");
+        await fetchData(searchQuery.current, page.current, sortBy.current);
     }, []);
 
     function randomString(length) {
@@ -51,12 +51,12 @@ const GamesGrid = () => {
     }
 
     const fetchData = async (searchQuery, pageNo, sortBy) => {
-        console.log("fetching pageNo:", pageNo);
+        // console.log("fetching pageNo:", pageNo, "searchQuery:", searchQuery, "sortBy:", sortBy);
 
         fetchingData.current = true;
         try {
             const response = await axios.get(`/api/games?pageNo=${pageNo + 1}&pageSize=50` + (sortBy ? ('&sortBy=' + sortBy) : '') + (searchQuery ? ('&q=' + searchQuery) : ''));
-            if (response.data.length < 50) {
+            if (response.data.length < 10) {
                 haveNext.current = false;
             }
             setData((prev) => [...prev, ...response.data]);
@@ -68,7 +68,7 @@ const GamesGrid = () => {
     };
 
     const fetchDiscounts = async (gameId, pageNo) => {
-        console.log("fetching discount gameId:", gameId, "pageNo:", pageNo);
+        // console.log("fetching discount gameId:", gameId, "pageNo:", pageNo);
 
         try {
             const response = await axios.get(`/api/games/${gameId}/discount-records?pageNo=${pageNo + 1}&pageSize=10`);
@@ -84,12 +84,12 @@ const GamesGrid = () => {
             return;
         }
 
-        console.log("handleSearch: ", query);
-        setSearchQuery(query);
+        // console.log("handleSearch: ", query);
+        searchQuery.current = query;
         page.current = 0;
         setData([]);
         setIsLoading(true)
-        await fetchData(query, 0, sortBy);
+        await fetchData(query, 0, sortBy.current);
     };
 
     const handleSearchClear = async () => {
@@ -98,12 +98,12 @@ const GamesGrid = () => {
         }
 
         // console.log("handleSearchClear");
-        setSearchQuery('');
+        searchQuery.current = '';
         setSearching(false);
         page.current = 0;
         setData([]);
         setIsLoading(true)
-        await fetchData('', 0, sortBy);
+        await fetchData('', 0, sortBy.current);
     };
 
     const handleSearchIconClick = () => {
@@ -116,11 +116,11 @@ const GamesGrid = () => {
         }
 
         // console.log("handleSortChange");
-        setSortBy(event.target.value);
+        sortBy.current = event.target.value;
         page.current = 0;
         setData([]);
         setIsLoading(true)
-        await fetchData(searchQuery, 0, event.target.value);
+        await fetchData(searchQuery.current, 0, event.target.value);
     };
 
     const handleScroll = async () => {
@@ -128,19 +128,19 @@ const GamesGrid = () => {
         if (!fetchingData.current &&
             (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1.5 * window.innerHeight) &&
             haveNext.current) {
-            console.log("fetchingData.current:", fetchingData.current, "haveNext.current:", haveNext.current)
+            // console.log("fetchingData.current:", fetchingData.current, "haveNext.current:", haveNext.current);
 
-            console.log("2nd useEffect");
+            // console.log("2nd useEffect");
 
             // fetchingData.current = true;
             page.current = page.current + 1;
             setIsLoading(true);
-            await fetchData(searchQuery, page.current, sortBy);
+            await fetchData(searchQuery.current, page.current, sortBy.current);
         }
     };
 
     const handlePopoverOpen = (gameId) => async (event) => {
-        console.log("handlePopoverOpen gameId:", gameId)
+        // console.log("handlePopoverOpen gameId:", gameId)
         setAnchorEl((prev) => {
             prev[gameId] = event.currentTarget;
             return prev;
@@ -189,13 +189,6 @@ const GamesGrid = () => {
                 id={anchorEl[data.id]}
                 open={Boolean(anchorEl[data.id])}
                 anchorEl={anchorEl[data.id]}
-                slotProps={{
-                    paper: {
-                        style: {
-                            boxShadow: '0px 1px 1px 0px rgb(0 0 0 / 6%)',
-                        }
-                    }
-                }}
                 anchorOrigin={{
                     vertical: 'bottom',
                     horizontal: 'right',
@@ -209,7 +202,7 @@ const GamesGrid = () => {
                 {isLoadingDiscount && <CircularProgress sx={{ padding: "10px 0" }} />}
                 {Boolean(anchorEl[data.id]) && discountRecords.map(function (item) {
                     return (<Typography variant="caption" display="inline" key={randomString(10)}>
-                        <span style={(data.cheapestPrice == item.discountPrice) ? { color: '#8f8f8f', fontWeight: 'bold' } : { color: '#8f8f8f' }}>${item.discountPrice} ({new Date(Date.parse(item.discountEndAt)).toLocaleDateString('zh-HK')})</span><br></br>
+                        <span style={(data.cheapestPrice == item.discountPrice) ? { color: '#f27979' } : { color: '#8f8f8f' }}>${item.discountPrice} ({new Date(Date.parse(item.discountEndAt)).toLocaleDateString('zh-HK')})</span><br></br>
                     </Typography>);
                 })}
             </Popover>
@@ -275,13 +268,12 @@ const GamesGrid = () => {
                                         }}
                                         returnKeyType='search'
                                         autoFocus={true}
-                                        defaultValue={searchQuery}
+                                        defaultValue={searchQuery.current}
                                         onKeyUp={(e) => {
                                             if (e.key === 'Enter') {
                                                 handleSearch(e.target.value);
                                             }
                                         }}
-
                                         onSubmitEditing={(e) => handleSearch(e.target.value)}
                                     />
                                 ) : (
@@ -291,7 +283,7 @@ const GamesGrid = () => {
                                 )}
                         </Grid>
                         <Grid item>
-                            <NativeSelect value={sortBy} onChange={handleSortChange}>
+                            <NativeSelect value={sortBy.current} onChange={handleSortChange}>
                                 <option value="-discountStartAt">最新優惠</option>
                                 <option value="discountEndAt">就完優惠</option>
                                 <option value="currentPrice">售價</option>
